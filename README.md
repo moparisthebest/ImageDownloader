@@ -7,4 +7,8 @@ The encryption mode is ```aes-gcm```. The authentcation tag of 16 bytes is appen
 
 This Java project provides sample code on how to download and dercypt a file. Output is to stdout. Redirect to file or pipe to image viewer.
 
+Compile with ```mvn package```
+
+Find a compiled version [here](https://gultsch.de/ImageDownloader-0.1.jar)
+
 Usage: ```java -jar ImageDownloader.jar http://host.tld/path/to/file.jpg#theivandkey```
