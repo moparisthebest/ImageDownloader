@@ -1,10 +1,15 @@
 #!/bin/bash
+set -e
 URL=$1
 BROWSER=firefox
-JAVA=/usr/lib/jvm/java-8-openjdk/bin/java
-IMAGE_DOWNLOADER=/home/daniel/Projects/ImageDownloader/target/ImageDownloader-0.1.jar
-if [ ${URL: -97:1} == "#" ]; then
-	$JAVA -jar $IMAGE_DOWNLOADER $URL | feh -. -
+AES_GCM="$(dirname $(readlink -f $0))/aesgcm"
+if [ ${URL: -97:1} == "#" ]
+then
+    [ -e "$AES_GCM" ] || gcc "$(dirname $(readlink -f $0))/aesgcm.c" -lcrypto -o "$AES_GCM"
+    curl "$URL" | "$AES_GCM" "${URL: -96}" | feh -. -
+elif echo $URL | grep -i '\.pgp$'
+then
+    curl "$URL" | gpg2 -d | feh -. -
 else
    $BROWSER $URL
 fi
