@@ -3,6 +3,7 @@
 #include <unistd.h>
 #include <openssl/evp.h>
 
+#define TAG_IV_LENGTH 16
 #define BYTES_PER_READ 32 * 1024 // 32kb
 #define INITIAL_BUFFER_SIZE 256 * 1024 // 256kb, must be at least 2*BYTES_PER_READ
 
@@ -22,13 +23,17 @@ void hex2string(char *src, unsigned char **dst_p)
 int main(int argc, char **argv)
 {
     unsigned char *gcm_ivkey, *gcm_ct, *gcm_pt;
-    int outlen, rv, final_outlen;
+    int outlen, rv = 0, final_outlen, decrypt = 1;
     size_t read, actual_size = 0, total_size = INITIAL_BUFFER_SIZE;
 
     if (argc < 2) {
-        printf("Usage: %s <key>\n", argv[0]);
+        fprintf(stderr, "Usage: %s <key> [enc]\n", argv[0]);
         return 1;
     }
+
+    // this means we want to encrypt, not decrypt
+    if (argc > 2 && strcmp("enc", argv[2]) == 0)
+        decrypt = 0;
 
     hex2string(argv[1], &gcm_ivkey);
 
@@ -42,34 +47,52 @@ int main(int argc, char **argv)
         }
     }
 
-    if (actual_size < 32) {
-        fprintf(stderr, "File too small for decryption\n");
+    if (actual_size < (decrypt ? 17 : 1)) {
+        fprintf(stderr, "File too small for %scryption\n", decrypt ? "de" : "en");
         return 1;
     }
 
-    actual_size -= 16;
+    if(decrypt)
+        actual_size -= TAG_IV_LENGTH;
 
-    gcm_pt = malloc(actual_size);
+    gcm_pt = malloc(decrypt ? actual_size : (actual_size + TAG_IV_LENGTH));
 
     EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
 
     /* Select cipher */
-    EVP_DecryptInit_ex(ctx, EVP_aes_256_gcm(), NULL, NULL, NULL);
+    if(decrypt)
+        EVP_DecryptInit_ex(ctx, EVP_aes_256_gcm(), NULL, NULL, NULL);
+    else
+        EVP_EncryptInit_ex(ctx, EVP_aes_256_gcm(), NULL, NULL, NULL);
 
     /* Set IV length, omit for 96 bits */
-    EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_IVLEN, 16, NULL);
+    EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_IVLEN, TAG_IV_LENGTH, NULL);
 
-    /* Specify key and IV */
-    EVP_DecryptInit_ex(ctx, NULL, NULL, gcm_ivkey+16, gcm_ivkey);
+    if(decrypt) {
+        /* Specify key and IV */
+        EVP_DecryptInit_ex(ctx, NULL, NULL, gcm_ivkey + TAG_IV_LENGTH, gcm_ivkey);
 
-    /* Decrypt plaintext */
-    EVP_DecryptUpdate(ctx, gcm_pt, &outlen, gcm_ct, actual_size);
+        /* Set expected tag value. */
+        EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_TAG, TAG_IV_LENGTH, gcm_ct + actual_size);
 
-    /* Set expected tag value. */
-    EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_TAG, 16, gcm_ct + actual_size);
+        /* Decrypt plaintext */
+        EVP_DecryptUpdate(ctx, gcm_pt, &outlen, gcm_ct, actual_size);
 
-    /* Finalise: note get no output for GCM */
-    rv = EVP_DecryptFinal_ex(ctx, gcm_pt, &final_outlen);
+        /* Finalise: note get no output for GCM */
+        rv = EVP_DecryptFinal_ex(ctx, gcm_pt, &final_outlen);
+    } else {
+        /* Specify key and IV */
+        EVP_EncryptInit_ex(ctx, NULL, NULL, gcm_ivkey + TAG_IV_LENGTH, gcm_ivkey);
+
+        /* Encrypt plaintext */
+        EVP_EncryptUpdate(ctx, gcm_pt, &outlen, gcm_ct, actual_size);
+
+        /* Finalise: note get no output for GCM */
+        rv = EVP_EncryptFinal_ex(ctx, gcm_pt, &final_outlen);
+
+        /* Get expected tag value. */
+        EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_GET_TAG, TAG_IV_LENGTH, gcm_pt + actual_size);
+    }
 
     EVP_CIPHER_CTX_free(ctx);
     free(gcm_ivkey);
@@ -77,7 +100,7 @@ int main(int argc, char **argv)
 
     if (rv > 0) {
         // success!
-        fwrite(gcm_pt, 1, outlen, stdout);
+        fwrite(gcm_pt, 1, decrypt ? outlen : (outlen + TAG_IV_LENGTH), stdout);
         free(gcm_pt);
         return 0;
     } else {

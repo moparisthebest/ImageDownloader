@@ -5,8 +5,10 @@ The anchor is made of 96 characters which represent 48 bytes in HEX. The first 1
 
 The encryption mode is ```aes-256-gcm```. The authentication tag of 16 bytes is appended to the file.
 
-This C project provides sample code on how to decrypt a file. Output is to stdout. Redirect to file or pipe to image viewer.
+This C project provides sample code on how to decrypt and encrypt a file. Output is to stdout. Redirect to file or pipe to image viewer.
 
 Compile with ```gcc aesgcm.c -lcrypto -o aesgcm```, openbrowser.sh also tries to compile it if the executable not already exist.
 
 Set openbrowser.sh as your browser in gajim or another XMPP client to automatically decrypt http uploads encrypted with OMEMO or PGP with Conversations.
+
+You can also encrypt data with aesgcm by sending in `enc` as the second parameter.
