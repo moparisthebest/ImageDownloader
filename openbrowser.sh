@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 URL=$1
-BROWSER=firefox
+BROWSER=xdg-open
 AES_GCM="$(dirname $(readlink -f $0))/aesgcm"
 if [ ${URL: -97:1} == "#" ]
 then
