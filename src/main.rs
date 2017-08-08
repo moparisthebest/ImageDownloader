@@ -33,7 +33,7 @@ fn encrypt(data: &[u8], key: &[u8], iv: &[u8]) -> Vec<u8> {
     let mut out: Vec<u8> = vec![0; data.len()];
     let mut out_tag: Vec<u8> = vec![0; 16];;
 
-    encryptor.encrypt(&*data, &mut out[..],&mut out_tag[..]);
+    encryptor.encrypt(&*data, &mut *out,&mut *out_tag);
 
     out.extend_from_slice(&out_tag);
     return out
@@ -60,7 +60,7 @@ fn decrypt(encrypted_data: &[u8], key: &[u8], iv: &[u8]) -> Result<Vec<u8>, &'st
     let out_len = encrypted_data.len() - 16;
     let mut out: Vec<u8> = vec![0; out_len];;
 
-    let result = decryptor.decrypt(&encrypted_data[0..out_len], &mut out[..], &encrypted_data[out_len..]);
+    let result = decryptor.decrypt(&encrypted_data[0..out_len], &mut *out, &encrypted_data[out_len..]);
     if result {
         Ok(out)
     } else {
