@@ -13,7 +13,6 @@ use std::io::{self, Write, Read, stdin};
 use crypto::aes;
 
 use rustc_serialize::hex::*;
-use std::iter::repeat;
 
 use crypto::aes_gcm::*;
 use crypto::aead::{AeadEncryptor,AeadDecryptor};
@@ -24,18 +23,17 @@ fn encrypt(data: &[u8], key: &[u8], iv: &[u8]) -> Vec<u8> {
 
     // Create an encryptor instance of the best performing
     // type available for the platform.
-    let aad: [u8; 0] = [];
     let mut encryptor = AesGcm::new(
         aes::KeySize::KeySize256,
         key,
         iv,
-        &aad
+        &[]
     );
 
-    let mut out: Vec<u8> = repeat(0).take(data.len()).collect();
-    let mut out_tag: Vec<u8> = repeat(0).take(16).collect();
+    let mut out: Vec<u8> = vec![0; data.len()];
+    let mut out_tag: Vec<u8> = vec![0; 16];;
 
-    encryptor.encrypt(&data[..], &mut out[..],&mut out_tag[..]);
+    encryptor.encrypt(&*data, &mut out[..],&mut out_tag[..]);
 
     out.extend_from_slice(&out_tag);
     return out
@@ -52,16 +50,15 @@ fn decrypt(encrypted_data: &[u8], key: &[u8], iv: &[u8]) -> Result<Vec<u8>, &'st
     // Create an decryptor instance of the best performing
     // type available for the platform.
 
-    let aad: [u8; 0] = [];
     let mut decryptor = AesGcm::new(
         aes::KeySize::KeySize256,
         key,
         iv,
-        &aad
+        &[]
     );
 
     let out_len = encrypted_data.len() - 16;
-    let mut out: Vec<u8> = repeat(0).take(out_len).collect();
+    let mut out: Vec<u8> = vec![0; out_len];;
 
     let result = decryptor.decrypt(&encrypted_data[0..out_len], &mut out[..], &encrypted_data[out_len..]);
     if result {
@@ -103,7 +100,7 @@ fn main() {
     if args.len() < 2 || args.len() > 3 {
         panic!("Usage: {} <key> [enc]", args[0]);
     } else if args.len() == 3 {
-        match &args[2][..] {
+        match &*args[2] {
             "enc" => { enc = true; }
             _ => panic!("Usage: {} <key> [enc]", args[0])
         }
@@ -128,7 +125,7 @@ fn main() {
 
     //println!("key: '{:?}' iv: '{:?}'", key, iv);
     //println!("key: '{}' iv: '{}'", key.to_hex(), iv.to_hex());
-    //let data = message.as_bytes();
+
     let mut data : Vec<u8> = Vec::new();
     stdin().read_to_end(& mut data).expect("error reading from stdin");
 
@@ -137,13 +134,21 @@ fn main() {
     } else {
         decrypt(&data, &key, &iv).expect("error during decryption")
     };
+    io::stdout().write(&data).expect("error writing to stdout");
+
+    /*
+    let message = "boba";
+    let data = message.as_bytes();
+    let encrypted_data = encrypt(&data, &key, &iv);
+    println!("message: '{}' encrypted: '{}'", message, encrypted_data.to_hex());
+    let decrypted_data = decrypt(&*encrypted_data, &key, &iv).expect("error during decryption");
 
     // aesgcm bd92a7b359f5d9a359c6bbda242b1f4cb2f4c8d9
     // rust   bd92a7b359f5d9a359c6bbda242b1f4cb2f4c8d9
     // ring   dffdc5d2460bc181e2a34d139e72b32c0985018a
 
-    //println!("message: '{}' encrypted: '{}'", message, encrypted_data.to_hex());
+    assert!(data == &*decrypted_data);
 
-    //println!("decrypted: {:?}", String::from_utf8(decrypted_data).unwrap());
-    io::stdout().write(&data).expect("error writing to stdout");
+    println!("decrypted: {:?}", String::from_utf8(decrypted_data).unwrap());
+    */
 }
